@@ -1,0 +1,88 @@
+---
+- name: "Creating EC2 using Ansible"
+  hosts: localhost
+  tasks:
+    - name: "Creating Key Pair"
+      ec2_key:
+        aws_access_key: ""
+        aws_secret_key: ""
+        name: "ansible"
+        region: "ap-south-1"
+        state: present
+      register: "key_details"
+
+
+
+    - debug:
+        var: key_details
+
+    - name: "Downloading Private Key"
+      when: key_details.changed == true
+      copy:
+        content: "{{ key_details.key.private_key }}"
+        dest: key.pem
+        mode: 0400
+
+    - name: "Creating Security Groups 1"
+      ec2_group:
+        aws_access_key: ""
+        aws_secret_key: ""
+        region: ""
+        description: "Allow SSH Traffic"
+        name: SSH
+        rules:
+          - from_port: 22
+            to_port: 22
+            proto: tcp
+            cidr_ip: 0.0.0.0/0
+            cidr_ipv6: ::/0
+        tags:
+          Name: SSH
+      register: sec_grp1
+    - debug:
+        var: sec_grp1
+
+    - name: "Creating Security Groups 2"
+      ec2_group:
+        aws_access_key: ""
+        aws_secret_key: ""
+        region: "ap-south-1"
+        description: "Allow HTTP/HTTPS Traffic"
+        name: HTTP/HTTPS
+        rules:
+          - from_port: 80
+            to_port: 80
+            proto: tcp
+            cidr_ip: 0.0.0.0/0
+            cidr_ipv6: ::/0
+
+          - from_port: 443
+            to_port: 443
+            proto: tcp
+            cidr_ip: 0.0.0.0/0
+            cidr_ipv6: ::/0
+        tags:
+          Name: HTTP/HTTPS
+      register: sec_grp2
+    - debug:
+        var: sec_grp2
+
+    - name: "Creating EC2"
+      ec2:
+        aws_access_key: ""
+        aws_secret_key: ""
+        region: "ap-south-1"
+
+
+        group_id:
+          - "{{ sec_grp1.group_id }}"
+          - "{{ sec_grp2.group_id }}"
+        key_name: ansible
+        image: "ami-052cef05d01020f1d"
+        instance_type: "t2.micro"
+        user_data: "{{ lookup( 'file', 'userdata.sh') }}"
+        instance_tags:
+          Name: Ansible-demo
+        count_tag:
+          Name: Ansible-demo
+        exact_count: 1
