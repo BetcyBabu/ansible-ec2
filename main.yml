@@ -1,88 +1,81 @@
 ---
-- name: "Creating EC2 using Ansible"
+
+- name: "Creating EC2"
   hosts: localhost
+  vars:
+    private_key_file: private_key.pem
+    key_name: ansible_ec2
+    sec_grp_name: ansible_sg
+    instance_count: "Enter number of instances you wish to create"
+    ami: "Enter AMI name"
+    type: "Enter Instance type"
+    user_data_file: userdata.sh
+    aws_access_key: "Enter your aws_access_key"
+    aws_secret_key: "Enter your aws_secret_key"
+    region: "Enter your aws_region"
   tasks:
-    - name: "Creating Key Pair"
+    - name: "Creating Private Key"
       ec2_key:
-        aws_access_key: ""
-        aws_secret_key: ""
-        name: "ansible"
-        region: "ap-south-1"
+        name: "{{ key_name }}"
         state: present
-      register: "key_details"
-
-
-
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ region }}"
+      register: ec2_key_status
     - debug:
-        var: key_details
+        var: ec2_key_status
 
-    - name: "Downloading Private Key"
-      when: key_details.changed == true
+    - name: "Saving Private Key"
+      when: ec2_key_status.changed == true
       copy:
-        content: "{{ key_details.key.private_key }}"
-        dest: key.pem
-        mode: 0400
-
-    - name: "Creating Security Groups 1"
+        content: "{{ ec2_key_status.key.private_key }}"
+        dest: "{{ private_key_file }}"
+        mode: 400
+    - name: "Creating Security Groups"
       ec2_group:
-        aws_access_key: ""
-        aws_secret_key: ""
-        region: ""
-        description: "Allow SSH Traffic"
-        name: SSH
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ region }}"
+        name: "{{ sec_grp_name }}"
+        state: present
+        description: "Allow 22,80,443 access"
         rules:
-          - from_port: 22
-            to_port: 22
-            proto: tcp
-            cidr_ip: 0.0.0.0/0
-            cidr_ipv6: ::/0
-        tags:
-          Name: SSH
-      register: sec_grp1
+          -  from_port: 22
+             to_port: 22
+             proto: tcp
+             cidr_ip: 0.0.0.0/0
+             cidr_ipv6: ::/0
+             rule_desc: "Allow SSH from ALL"
+
+          -  from_port: 80
+             to_port: 80
+             proto: tcp
+             cidr_ip: 0.0.0.0/0
+             cidr_ipv6: ::/0
+             rule_desc: "Allow HTTP from ALL"
+
+          -  from_port: 443
+             to_port: 443
+             proto: tcp
+             cidr_ip: 0.0.0.0/0
+             cidr_ipv6: ::/0
+             rule_desc: "Allow HTTPS from ALL"
+      register: sec_grp
     - debug:
-        var: sec_grp1
-
-    - name: "Creating Security Groups 2"
-      ec2_group:
-        aws_access_key: ""
-        aws_secret_key: ""
-        region: "ap-south-1"
-        description: "Allow HTTP/HTTPS Traffic"
-        name: HTTP/HTTPS
-        rules:
-          - from_port: 80
-            to_port: 80
-            proto: tcp
-            cidr_ip: 0.0.0.0/0
-            cidr_ipv6: ::/0
-
-          - from_port: 443
-            to_port: 443
-            proto: tcp
-            cidr_ip: 0.0.0.0/0
-            cidr_ipv6: ::/0
-        tags:
-          Name: HTTP/HTTPS
-      register: sec_grp2
-    - debug:
-        var: sec_grp2
-
+        var: sec_grp
     - name: "Creating EC2"
       ec2:
-        aws_access_key: ""
-        aws_secret_key: ""
-        region: "ap-south-1"
-
-
-        group_id:
-          - "{{ sec_grp1.group_id }}"
-          - "{{ sec_grp2.group_id }}"
-        key_name: ansible
-        image: "ami-052cef05d01020f1d"
-        instance_type: "t2.micro"
-        user_data: "{{ lookup( 'file', 'userdata.sh') }}"
-        instance_tags:
-          Name: Ansible-demo
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ region }}"
         count_tag:
-          Name: Ansible-demo
-        exact_count: 1
+          name: webserver
+        exact_count: "{{ instance_count }}"
+        image: "{{ ami }}"
+        group_id: "{{ sec_grp.group_id }}"
+        instance_type: "{{ type }}"
+        key_name: "{{ key_name }}"
+        user_data: "{{ lookup( 'file', '{{ user_data_file }}')}}"
+        instance_tags:
+          name: websevrer
+        wait: yes
