@@ -77,5 +77,5 @@
         key_name: "{{ key_name }}"
         user_data: "{{ lookup( 'file', '{{ user_data_file }}')}}"
         instance_tags:
-          name: websevrer
+          name: webserver
         wait: yes
